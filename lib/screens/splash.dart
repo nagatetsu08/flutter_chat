@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_chat/main.dart';
 
-class ChatScreen extends StatelessWidget {
-  const ChatScreen({
+class SplashScreen extends StatelessWidget {
+  const SplashScreen({
     super.key
   });
 
@@ -13,7 +13,7 @@ class ChatScreen extends StatelessWidget {
         title: const Text('Flutter Chat')
       ),
       body: const Center(
-        child: Text('Loged in'),
+        child: Text('loading'),
       ),
     );
   }
