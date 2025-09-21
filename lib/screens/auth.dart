@@ -1,5 +1,10 @@
+import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_chat/widgets/user_images_picker.dart';
 
 final _firebase = FirebaseAuth.instance;
 
@@ -29,17 +34,47 @@ class _AuthScreen extends State<AuthScreen> {
   var _enterEmail = '';
   var _enterPassword = '';
 
-  void _submit() async {
-    // FormInputTextに設定したバリデーション（validator）がこのタイミングで呼ばれる。
-    final isValid = _form.currentState!.validate(); 
+  // chatに表示する画像
+  File? _selectedImage;
+  var _isAuthenticating = false;
 
-    if(!isValid) {
-      return;
-    } 
+  void _submit() async {
+
+    // FormInputTextに設定したバリデーション（validator）がこのタイミングで呼ばれる。
+    final isValid = _form.currentState!.validate();
+
+  // バリデーションエラーがあった際はダイアログメッセージを出す。
+  if (!isValid || (!_isLogin && _selectedImage == null)) {
+    String errorMsg = '';
+    if (!isValid) {
+      errorMsg = '入力内容に誤りがあります。';
+    } else if (!_isLogin && _selectedImage == null) {
+      errorMsg = '画像を選択してください。';
+    }
+    // showDialogはFutureを返すが単に表示するだけならawaitしなくていい。
+    // OKボタンで閉じた後に何かしたいのであれば、awaitにする。
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('エラー'),
+        content: Text(errorMsg),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return;
+  }
 
     // 各FormコンポーネントのonSaveイベントを発動させる
     _form.currentState!.save();
     try {
+      setState(() {
+        _isAuthenticating = true;
+      });
       if(_isLogin) {
         // log users in
         final _userCredentials = await _firebase.signInWithEmailAndPassword(
@@ -49,10 +84,32 @@ class _AuthScreen extends State<AuthScreen> {
         
       } else {
         // create user
+        // これはAuthenticationで必要なのだが、画像情報やユーザー名といった付加属性を同じ場所に保存できない。
+        // アプリの表示で使う情報はFirestoreを作って保存するのが通常のやり方
         final userCredentials = await _firebase.createUserWithEmailAndPassword(
           email: _enterEmail, 
           password: _enterPassword
         );
+
+        // Firebaseに保存する画像インスタンスを生成する。
+        final storageRef = FirebaseStorage.instance.ref()
+          .child('user_images')
+          .child('${userCredentials.user!.uid}.jpg');
+
+        await storageRef.putFile(_selectedImage!);
+
+        // アプリ上で画像を永続的に使用（表示）するには、ダウンロードURLが必要
+        final imageUrl = await storageRef.getDownloadURL();
+
+        await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredentials.user!.uid)
+          .set({
+            'username': '',
+            'email': _enterEmail,
+            'imageUrl': imageUrl
+          });
+
       }      
     } on FirebaseAuthException catch(error) {
       // 細かくエラー内容をハンドリングできる
@@ -61,6 +118,10 @@ class _AuthScreen extends State<AuthScreen> {
       }
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message ?? 'Autentication Failed')));
+
+      setState(() {
+        _isAuthenticating = false;
+      });
     }
   }
 
@@ -102,6 +163,11 @@ class _AuthScreen extends State<AuthScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if(!_isLogin) UserImagesPicker(
+                          onPickImage: (pickedImage) {
+                            _selectedImage = pickedImage;
+                          },
+                        ),
                         TextFormField(
                           decoration: const InputDecoration(
                             labelText: 'Email Address',
@@ -139,22 +205,26 @@ class _AuthScreen extends State<AuthScreen> {
                           },  
                         ),
                         const SizedBox(height: 12,),
-                        ElevatedButton(
-                          onPressed: _submit,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).colorScheme.primaryContainer
+                        if (_isAuthenticating)
+                          CircularProgressIndicator(),
+                        if (!_isAuthenticating)
+                          ElevatedButton(
+                            onPressed: _submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Theme.of(context).colorScheme.primaryContainer
+                            ),
+                            child: Text(_isLogin ? 'Login' : 'Sign up'),
                           ),
-                          child: Text(_isLogin ? 'Login' : 'Sign up'),
-                        ),
                         // ログインモードとサインアップモードを切り替える 
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              _isLogin = !_isLogin; //現在のモードを切り替えるだけ
-                            });
-                          }, 
-                          child: Text(_isLogin ? 'Create an account' : 'I already have an account')
-                        )
+                        if (!_isAuthenticating)
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _isLogin = !_isLogin; //現在のモードを切り替えるだけ
+                              });
+                            }, 
+                            child: Text(_isLogin ? 'Create an account' : 'I already have an account')
+                          )
                       ],
                     ),
                   ),
