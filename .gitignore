@@ -46,3 +46,10 @@ app.*.map.json
 
 .env
 pubspec.lock
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+firebase.json
+ios/Podfile
+ios/Podfile.lock
+.vscode
+macos/Podfile
