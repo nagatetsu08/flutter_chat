@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_chat/main.dart';
+import 'package:flutter_chat/widgets/chat_messages.dart';
+import 'package:flutter_chat/widgets/new_message.dart';
 
 class ChatScreen extends StatelessWidget {
   const ChatScreen({
@@ -26,8 +28,12 @@ class ChatScreen extends StatelessWidget {
           )
         ],
       ),
-      body: const Center(
-        child: Text('Loged in'),
+      body: Column(
+        children: const [
+          // lineっぽくみせたいのでChatMessagesは縦幅許す限りまで拡大する。
+          Expanded(child: ChatMessages()),
+          NewMessage()
+        ],
       ),
     );
   }

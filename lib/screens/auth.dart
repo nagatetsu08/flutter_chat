@@ -30,9 +30,11 @@ class _AuthScreen extends State<AuthScreen> {
 
   final _form = GlobalKey<FormState>();
 
+  // dartのvarは型推論を自動でやってくれる。
   var _isLogin = true;
   var _enterEmail = '';
   var _enterPassword = '';
+  var _userName = '';
 
   // chatに表示する画像
   File? _selectedImage;
@@ -43,31 +45,31 @@ class _AuthScreen extends State<AuthScreen> {
     // FormInputTextに設定したバリデーション（validator）がこのタイミングで呼ばれる。
     final isValid = _form.currentState!.validate();
 
-  // バリデーションエラーがあった際はダイアログメッセージを出す。
-  if (!isValid || (!_isLogin && _selectedImage == null)) {
-    String errorMsg = '';
-    if (!isValid) {
-      errorMsg = '入力内容に誤りがあります。';
-    } else if (!_isLogin && _selectedImage == null) {
-      errorMsg = '画像を選択してください。';
+    // バリデーションエラーがあった際はダイアログメッセージを出す。
+    if (!isValid || (!_isLogin && _selectedImage == null)) {
+      String errorMsg = '';
+      if (!isValid) {
+        errorMsg = '入力内容に誤りがあります。';
+      } else if (!_isLogin && _selectedImage == null) {
+        errorMsg = '画像を選択してください。';
+      }
+      // showDialogはFutureを返すが単に表示するだけならawaitしなくていい。
+      // OKボタンで閉じた後に何かしたいのであれば、awaitにする。
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('エラー'),
+          content: Text(errorMsg),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
     }
-    // showDialogはFutureを返すが単に表示するだけならawaitしなくていい。
-    // OKボタンで閉じた後に何かしたいのであれば、awaitにする。
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('エラー'),
-        content: Text(errorMsg),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-    return;
-  }
 
     // 各FormコンポーネントのonSaveイベントを発動させる
     _form.currentState!.save();
@@ -105,7 +107,7 @@ class _AuthScreen extends State<AuthScreen> {
           .collection('users')
           .doc(userCredentials.user!.uid)
           .set({
-            'username': '',
+            'username': _userName,
             'email': _enterEmail,
             'imageUrl': imageUrl
           });
@@ -158,6 +160,29 @@ class _AuthScreen extends State<AuthScreen> {
                 margin: EdgeInsets.all(20),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
+
+                  /**
+                   * Form + TextFormFieldを使っている理由（=TextField + TextEditingControllerを使わない理由）
+                   * 
+                   * ・単純なバリデーションしかない。
+                   * 
+                   * ・ユーザー起点のイベントハンドラしかない。（（onSavedとかonChangeなど））
+                   * →TextEditingControllerでは、単純なバリデーションに加え、プログラマブルな変更も検知して対応可能。
+                   * 
+                   * 　例：サジェスト機能の結果をクリックしたらTextField/TextFormFieldの入力値を書き換える / ボタン押下時に定型文・履歴を自動セットする
+                   *      
+                   *      上記はユーザー入力ではなく、プログラムが自動で入力するためonChangeイベントが発生しない。なので、TextFormFieldのonChangeイベントで
+                   * 　　　UI変更を発動させようとすると、これが発動しない。TextEditingControllerを使うとこういうプログラムが放り込んだ内容でもonChangeイベント
+                   * 　　　として検知してくれる
+                   * 
+                   * 
+                   * ・動的にウィジェットの内容（Text内容）を変更しない。（入力途中に自身以外のUIを変更させたい時はTextEditingController）が必要
+                   * ・RiverPodなどの外部状態とUIの同期が必要ないから。
+                   * ・双方向バインディングではないから。
+                   * →TextFormFieldに設定できるonChangeは「UIになんか変更あった　→ 関連する状態を変更」といった一方向はできるが、
+                   * 逆パターン「関連する状態に変更が入った　→ 関連するUIも変更」といったパターンができないが、TextEditingControllerを使うとできるらしい。
+                   * 
+                   */
                   child: Form(
                     key: _form,
                     child: Column(
@@ -189,6 +214,23 @@ class _AuthScreen extends State<AuthScreen> {
                             // まだパスワードの値の取り出しが残ってるし。。。
                           },
                         ),
+                        // ユーザー名（サインアップの時だけ表示）
+                        if(!_isLogin)
+                          TextFormField(
+                            decoration: const InputDecoration(
+                              labelText: 'userName',
+                            ),
+                            enableSuggestions: false, // 不要なsujest機能をOFF
+                            validator: (value) {
+                              if(value == null || value.isEmpty || value.trim().length < 4 ) {
+                                return 'Please Enter valid user name. at lease 4 characters';
+                              }
+                              return null;
+                            },
+                            onSaved: (value) {
+                              _userName = value!;
+                            },
+                          ),
                         TextFormField(
                           decoration: const InputDecoration(
                             labelText: 'Password',
