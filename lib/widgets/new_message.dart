@@ -85,6 +85,7 @@ class _NewMessageState extends State<NewMessage> {
 
             child: TextField(
               controller: _messageController,
+              keyboardType: TextInputType.text,
               // 勝手に変換しないようにする。
               textCapitalization: TextCapitalization.none,
               autocorrect: false,

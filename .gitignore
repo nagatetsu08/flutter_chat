@@ -53,3 +53,4 @@ ios/Podfile
 ios/Podfile.lock
 .vscode
 macos/Podfile
+functions/*
